@@ -13,7 +13,7 @@ import Data.Generics.Fixplate.Base (ShowF(..))
 import Data.Generics.Fixplate.Traversals (restructure)
 import Data.Generics.Fixplate.Functor ((:+:)(..))
 import Data.Generics.Fixplate.Lens
-import Data.Variant1
+import Data.Variant1.Lens
 
 import Control.Applicative ((<|>))
 import Control.Lens.Fold ((^?))
