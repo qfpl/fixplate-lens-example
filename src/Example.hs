@@ -6,7 +6,6 @@
 {-# language FlexibleContexts #-}
 {-# language TemplateHaskell #-}
 {-# language DataKinds, TypeOperators #-}
-{-# language StandaloneDeriving #-}
 module Example where
 
 import Data.Generics.Fixplate.Base (ShowF(..))
@@ -18,16 +17,13 @@ import Data.Variant1.Lens
 import Control.Applicative ((<|>))
 import Control.Lens.Fold ((^?))
 import Control.Lens.Iso (from)
-import Control.Lens.Operators ((<&>))
 import Control.Lens.Plated (rewriteOf)
-import Control.Lens.Prism (Prism', prism', outside)
+import Control.Lens.Prism (Prism', prism')
 import Control.Lens.Review ((#))
-import Control.Lens.Setter ((.~))
 import Control.Lens.TH (makeClassyPrisms)
 import Data.Deriving (deriveShow1)
 import Data.Foldable (asum)
 import Data.Monoid (Alt(..))
-import GHC.TypeLits (TypeError, ErrorMessage(..))
 
 
 
