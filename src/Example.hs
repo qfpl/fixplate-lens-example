@@ -8,11 +8,15 @@
 {-# language DataKinds, TypeOperators #-}
 module Example where
 
+import All
+
 import Data.Generics.Fixplate.Base (ShowF(..))
-import Data.Generics.Fixplate.Traversals (restructure)
 import Data.Generics.Fixplate.Functor ((:+:)(..))
+import Data.Generics.Fixplate.Morphisms (cata)
+import Data.Generics.Fixplate.Traversals (restructure)
 import Data.Generics.Fixplate.Lens
 import Data.Variant1.Lens
+import Data.Record1.Lens
 
 import Control.Applicative ((<|>))
 import Control.Lens.Fold ((^?))
@@ -185,3 +189,70 @@ fillPlaceHolders f =
   elimV1 (\(PlaceholderF b) -> unFix $ f b) $
   elimV1 (_Ctor1 @IntF #) $
   absurdV1
+
+
+newtype Alg f a = Alg { getAlg :: f a -> a }
+
+class Algebra1 fs where
+  mkAlg1 :: Record1 (All Alg fs) a -> Alg (Variant1 fs) a
+
+instance Algebra1 '[] where
+  mkAlg1 _ = Alg absurdV1
+
+instance Algebra1 fs => Algebra1 (f ': fs) where
+  mkAlg1 r = Alg (elimV1 (getAlg $ headR1 r) (getAlg . mkAlg1 $ shrinkR1 r))
+
+data Value
+  = VInt !Int
+  | VVar String
+  | VClosure (Value -> Value)
+
+showValue :: Value -> String
+showValue (VInt a) = "VInt " <> show a
+showValue (VVar a) = "VVar " <> show a
+showValue (VClosure _) = "<VClosure>"
+
+subst :: String -> Value -> Value -> Value
+subst n e (VVar n') | n == n' = e
+subst n e (VClosure f) = VClosure $ subst n e . f
+subst n e (VInt i) = VInt i
+
+evalIntF :: Alg IntF Value
+evalIntF = Alg $ \(IntF n) -> VInt n
+
+evalAddF :: Alg AddF Value
+evalAddF =
+  Alg $
+  \e ->
+    case e of
+      AddF (VInt n) (VInt m) -> VInt (n + m)
+      _ -> error "stuck"
+
+evalMultF :: Alg MultF Value
+evalMultF =
+  Alg $
+  \e ->
+    case e of
+      MultF (VInt n) (VInt m) -> VInt (n * m)
+      _ -> error "stuck"
+
+evalExprF :: Alg ExprF Value
+evalExprF =
+  Alg $
+  \case
+    VarF n -> VVar n
+    LamF x e -> VClosure $ \v -> subst x v e
+    AppF (VClosure f) x -> f x
+
+evalExpr :: Alg (Variant1 '[ExprF, AddF, MultF, IntF]) Value
+evalExpr =
+  mkAlg1 $
+  introR1 (const evalExprF) id $
+  introR1 (const evalAddF) id $
+  introR1 (const evalMultF) id $
+  introR1 (const evalIntF) id $
+  emptyR1
+
+-- | I think this is actually the wrong way to evaluate terms, we will fix later
+eval :: Expr -> Value
+eval = cata (getAlg evalExpr)

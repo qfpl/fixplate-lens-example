@@ -26,6 +26,16 @@ let
                  nixpkgs = pkgsSelf;
                  inherit compiler;
                };
+             record1 =
+               import ./nix/record1.nix {
+                 nixpkgs = pkgsSelf;
+                 inherit compiler;
+               };
+             record1-lens =
+               import ./nix/record1-lens.nix {
+                 nixpkgs = pkgsSelf;
+                 inherit compiler;
+               };
            };
          };
     };
