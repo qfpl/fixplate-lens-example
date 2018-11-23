@@ -43,7 +43,7 @@ instance Ctor1 s AddF => AsAddF (Variant1 s a) a where
   {-# inline _AddF #-}
   _AddF = _Ctor1 @AddF . _AddF
 
-instance AsAddF s a => AsAddF (Mu s) (Mu s) where
+instance Ctor1 s AddF => AsAddF (Mu (Variant1 s)) (Mu (Variant1 s)) where
   {-# inline _AddF #-}
   _AddF = from _Mu . _AddF
 
@@ -65,7 +65,7 @@ instance Ctor1 s MultF => AsMultF (Variant1 s a) a where
   {-# inline _MultF #-}
   _MultF = _Ctor1 @MultF . _MultF
 
-instance AsMultF s a => AsMultF (Mu s) (Mu s) where
+instance Ctor1 s MultF => AsMultF (Mu (Variant1 s)) (Mu (Variant1 s)) where
   {-# inline _MultF #-}
   _MultF = from _Mu . _MultF
 
@@ -87,7 +87,7 @@ instance Ctor1 s IntF => AsIntF (Variant1 s a) a where
   {-# inline _IntF #-}
   _IntF = _Ctor1 @IntF . _IntF
 
-instance AsIntF s a => AsIntF (Mu s) (Mu s) where
+instance Ctor1 s IntF => AsIntF (Mu (Variant1 s)) (Mu (Variant1 s)) where
   {-# inline _IntF #-}
   _IntF = from _Mu . _IntF
 
@@ -106,7 +106,7 @@ instance Ctor1 s ExprF => AsExprF (Variant1 s a) a where
   {-# inline _ExprF #-}
   _ExprF = _Ctor1 @ExprF
 
-instance AsExprF s a => AsExprF (Mu s) (Mu s) where
+instance Ctor1 s ExprF => AsExprF (Mu (Variant1 s)) (Mu (Variant1 s)) where
   {-# inline _ExprF #-}
   _ExprF = from _Mu . _ExprF
 
