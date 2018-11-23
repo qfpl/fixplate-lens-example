@@ -1,5 +1,6 @@
 { nixpkgs ? import <nixpkgs> {}
-, compiler ? "default", doBenchmark ? false
+, compiler ? "default"
+, doBenchmark ? false
 }:
 
 let
