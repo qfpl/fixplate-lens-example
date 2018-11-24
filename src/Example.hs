@@ -263,15 +263,22 @@ stepExprF_strict step s = do
         pure (subst n b body)
     ]
 
-{-# inline buildEval #-}
-buildEval :: [(s -> Maybe s) -> s -> Maybe s] -> s -> Maybe s
-buildEval steps = go
+{-# inline stepAll #-}
+stepAll :: [(s -> Maybe s) -> s -> Maybe s] -> s -> Maybe s
+stepAll steps = go
   where
     go = getAlt . foldMap (\f -> Alt . f go) steps
 
-eval :: Expr -> Maybe Expr
+{-# inline untilNothing #-}
+untilNothing :: (a -> Maybe a) -> a -> a
+untilNothing f = go
+  where
+    go a = maybe a go (f a)
+
+eval :: Expr -> Expr
 eval =
-  buildEval
+  untilNothing $
+  stepAll
   [ stepIntF
   , stepAddF
   , stepMultF
