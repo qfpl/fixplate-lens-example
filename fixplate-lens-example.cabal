@@ -27,4 +27,5 @@ library
                      , record1
                      , record1-lens
   hs-source-dirs:      src
+  ghc-options:         -O -ddump-to-file -ddump-simpl
   default-language:    Haskell2010

@@ -27,6 +27,7 @@ import Control.Lens.Review ((#))
 import Control.Lens.TH (makeClassyPrisms)
 import Data.Deriving (deriveShow1)
 import Data.Foldable (asum)
+import Data.Maybe (fromMaybe)
 import Data.Monoid (Alt(..))
 
 
@@ -114,6 +115,15 @@ instance Ctor1 s ExprF => AsExprF (Mu (Variant1 s)) (Mu (Variant1 s)) where
   {-# inline _ExprF #-}
   _ExprF = from _Mu . _ExprF
 
+  {-# inline _LamF #-}
+  _LamF = from _Mu . _LamF
+
+  {-# inline _VarF #-}
+  _VarF = from _Mu . _VarF
+
+  {-# inline _AppF #-}
+  _AppF = from _Mu . _AppF
+
 
 
 {-# inline elimPlusZero #-}
@@ -191,68 +201,79 @@ fillPlaceHolders f =
   absurdV1
 
 
-newtype Alg f a = Alg { getAlg :: f a -> a }
 
-class Algebra1 fs where
-  mkAlg1 :: Record1 (All Alg fs) a -> Alg (Variant1 fs) a
+-- | We don't get any value from inlining subst
+subst :: AsExprF s s => String -> s -> s -> s
+subst n e ex =
+  fromMaybe ex $
+  (\(n', body) -> _LamF # (n', if n == n' then body else subst n e body)) <$> (ex ^? _LamF) <|>
+  (\(f, x) -> _AppF # (subst n e f, subst n e x)) <$> (ex ^? _AppF) <|>
+  (\n' -> if n == n' then e else _VarF # n') <$> (ex ^? _VarF)
 
-instance Algebra1 '[] where
-  mkAlg1 _ = Alg absurdV1
+{-# inline stepIntF #-}
+stepIntF :: AsIntF s a => (s -> Maybe s) -> s -> Maybe s
+stepIntF _ s = Nothing
 
-instance Algebra1 fs => Algebra1 (f ': fs) where
-  mkAlg1 r = Alg (elimV1 (getAlg $ headR1 r) (getAlg . mkAlg1 $ shrinkR1 r))
+{-# inline stepAddF #-}
+stepAddF :: (AsAddF s s, AsIntF s s) => (s -> Maybe s) -> s -> Maybe s
+stepAddF step s = do
+  (a, b) <- s ^? _AddF
+  asum
+    [ (\x -> _AddF # (x, b)) <$> step a
+    , (\x -> _AddF # (a, x)) <$> step b
+    , do
+        a' <- a ^? _IntF
+        b' <- b ^? _IntF
+        pure $ _IntF # (a' + b')
+    ]
 
-data Value
-  = VInt !Int
-  | VVar String
-  | VClosure (Value -> Value)
+{-# inline stepMultF #-}
+stepMultF :: (AsMultF s s, AsIntF s s) => (s -> Maybe s) -> s -> Maybe s
+stepMultF step s = do
+  (a, b) <- s ^? _MultF
+  asum
+    [ (\x -> _MultF # (x, b)) <$> step a
+    , (\x -> _MultF # (a, x)) <$> step b
+    , do
+        a' <- a ^? _IntF
+        b' <- b ^? _IntF
+        pure $ _IntF # (a' * b')
+    ]
 
-showValue :: Value -> String
-showValue (VInt a) = "VInt " <> show a
-showValue (VVar a) = "VVar " <> show a
-showValue (VClosure _) = "<VClosure>"
+{-# inline stepExprF_lazy #-}
+stepExprF_lazy :: AsExprF s s => (s -> Maybe s) -> s -> Maybe s
+stepExprF_lazy step s = do
+  (a, b) <- s ^? _AppF
+  asum
+    [ (\x -> _AppF # (x, b)) <$> step a
+    , do
+        (n, body) <- a ^? _LamF
+        pure (subst n b body)
+    ]
 
-subst :: String -> Value -> Value -> Value
-subst n e (VVar n') | n == n' = e
-subst n e (VClosure f) = VClosure $ subst n e . f
-subst n e (VInt i) = VInt i
+{-# inline stepExprF_strict #-}
+stepExprF_strict :: AsExprF s s => (s -> Maybe s) -> s -> Maybe s
+stepExprF_strict step s = do
+  (a, b) <- s ^? _AppF
+  asum
+    [ (\x -> _AppF # (x, b)) <$> step a
+    , (\x -> _AppF # (a, x)) <$> step b
+    , do
+        (n, body) <- a ^? _LamF
+        pure (subst n b body)
+    ]
 
-evalIntF :: Alg IntF Value
-evalIntF = Alg $ \(IntF n) -> VInt n
+{-# inline buildEval #-}
+buildEval :: [(s -> Maybe s) -> s -> Maybe s] -> s -> Maybe s
+buildEval steps = go
+  where
+    go = getAlt . foldMap (\f -> Alt . f go) steps
 
-evalAddF :: Alg AddF Value
-evalAddF =
-  Alg $
-  \e ->
-    case e of
-      AddF (VInt n) (VInt m) -> VInt (n + m)
-      _ -> error "stuck"
-
-evalMultF :: Alg MultF Value
-evalMultF =
-  Alg $
-  \e ->
-    case e of
-      MultF (VInt n) (VInt m) -> VInt (n * m)
-      _ -> error "stuck"
-
-evalExprF :: Alg ExprF Value
-evalExprF =
-  Alg $
-  \case
-    VarF n -> VVar n
-    LamF x e -> VClosure $ \v -> subst x v e
-    AppF (VClosure f) x -> f x
-
-evalExpr :: Alg (Variant1 '[ExprF, AddF, MultF, IntF]) Value
-evalExpr =
-  mkAlg1 $
-  introR1 (const evalExprF) id $
-  introR1 (const evalAddF) id $
-  introR1 (const evalMultF) id $
-  introR1 (const evalIntF) id $
-  emptyR1
-
--- | I think this is actually the wrong way to evaluate terms, we will fix later
-eval :: Expr -> Value
-eval = cata (getAlg evalExpr)
+eval :: Expr -> Maybe Expr
+eval =
+  buildEval
+  [ stepIntF
+  , stepAddF
+  , stepMultF
+  , stepExprF_lazy
+  ]
